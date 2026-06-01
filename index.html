@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base target="_blank">
+  <title>AdaCodec: A Predictive Visual Code for Video MLLMs</title>
+  <meta name="description" content="AdaCodec is a predictive visual code for video MLLMs that replaces repeated per-frame RGB tokens with adaptive I-frame tokens and compact motion-and-residual P-tokens.">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #ffffff;
+      --paper: #ffffff;
+      --ink: #151719;
+      --muted: #5d636b;
+      --line: #cfd3d7;
+      --line-strong: #151719;
+      --accent: #006b5c;
+      --accent-2: #8b3f19;
+      --soft: #ffffff;
+      --soft-2: #ffffff;
+      --mono: "SFMono-Regular", "Cascadia Code", "Liberation Mono", Menlo, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --serif: Georgia, "Times New Roman", serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      border-radius: 0 !important;
+      min-width: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: var(--sans);
+      line-height: 1.55;
+      text-rendering: optimizeLegibility;
+      overflow-x: hidden;
+    }
+
+    a {
+      color: inherit;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.18em;
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+
+    figure {
+      margin: 0;
+    }
+
+    main {
+      overflow: hidden;
+    }
+
+    .section {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .wrap {
+      width: min(920px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .hero .wrap {
+      text-align: center;
+    }
+
+    .hero {
+      padding: 48px 0 34px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .hero-grid {
+      display: block;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      letter-spacing: 0;
+      line-height: 1.08;
+    }
+
+    h1 {
+      max-width: 820px;
+      margin: 0 auto;
+      font-size: clamp(30px, 4.2vw, 48px);
+      font-weight: 760;
+    }
+
+    h2 {
+      font-size: clamp(25px, 3.2vw, 36px);
+      font-weight: 720;
+    }
+
+    h3 {
+      font-size: 15px;
+      font-weight: 720;
+    }
+
+    .authors {
+      max-width: 900px;
+      margin: 16px auto 0;
+      color: #426f8e;
+      font-size: 14px;
+      line-height: 1.45;
+      text-align: center;
+    }
+
+    .authors strong {
+      font-weight: 650;
+    }
+
+    .authors a {
+      color: inherit;
+      text-decoration: none;
+      transition: color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .authors a:hover,
+    .authors a:focus-visible {
+      color: #285a7c;
+      background-color: rgba(66, 111, 142, 0.07);
+    }
+
+    .authors a:focus-visible {
+      outline: 2px solid rgba(66, 111, 142, 0.3);
+      outline-offset: 2px;
+    }
+
+    .affiliations {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .correspondence {
+      margin-top: 2px;
+    }
+
+    .abstract {
+      max-width: 920px;
+      margin: 20px auto 0;
+      padding: 0;
+      color: #2e3338;
+      font-size: 15px;
+      text-align: left;
+    }
+
+    .abstract p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .button,
+    .button-disabled {
+      display: inline-flex;
+      align-items: center;
+      min-height: 42px;
+      max-width: 100%;
+      padding: 0 15px;
+      border: 1px solid var(--line-strong);
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 650;
+      text-decoration: none;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .button:hover {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .button-disabled {
+      color: var(--muted);
+      background: #f2f1ee;
+      cursor: default;
+    }
+
+    .figure-frame {
+      margin-top: 28px;
+      padding: 10px;
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+    }
+
+    .caption {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      text-align: left;
+    }
+
+    .section-pad {
+      padding: 44px 0;
+    }
+
+    .section-head {
+      display: block;
+      margin-bottom: 20px;
+    }
+
+    .section-head p {
+      max-width: none;
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-top: 1px solid var(--line-strong);
+      border-left: 1px solid var(--line-strong);
+      background: var(--paper);
+    }
+
+    .metric {
+      min-height: 0;
+      padding: 10px 12px;
+      border-right: 1px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .metric strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--accent);
+      font-size: 25px;
+      line-height: 1;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.35;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 34px;
+      align-items: start;
+    }
+
+    .panel {
+      padding: 14px 16px;
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+    }
+
+    .panel p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .steps {
+      display: grid;
+      gap: 0;
+      margin-top: 0;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 10px;
+      padding: 8px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .step:first-child {
+      padding-top: 0;
+      border-top: 0;
+    }
+
+    .step-num {
+      color: var(--accent-2);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    .step p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 12.5px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line-strong);
+      background: var(--paper);
+    }
+
+    .result-wrap {
+      overflow-x: visible;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--ink);
+      background: #f2f3f1;
+      font-weight: 700;
+    }
+
+    td {
+      color: #2e3338;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .result-table {
+      min-width: 0;
+      table-layout: fixed;
+      font-size: 8.2px;
+      line-height: 1.18;
+    }
+
+    .result-table th,
+    .result-table td {
+      padding: 4px 3px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      text-align: center;
+      vertical-align: middle;
+      border-right: 0;
+    }
+
+    .result-table thead tr:first-child th:first-child,
+    .result-table tbody td:first-child {
+      text-align: left;
+    }
+
+    .result-table th:last-child,
+    .result-table td:last-child {
+      border-right: 0;
+    }
+
+    .result-table thead tr:first-child th:nth-child(1),
+    .result-table thead tr:first-child th:nth-child(2),
+    .result-table thead tr:first-child th:nth-child(3),
+    .result-table thead tr:nth-child(2) th:nth-child(3),
+    .result-table thead tr:nth-child(2) th:nth-child(6),
+    .result-table tbody tr:not(.group-row) td:nth-child(1),
+    .result-table tbody tr:not(.group-row) td:nth-child(4),
+    .result-table tbody tr:not(.group-row) td:nth-child(7) {
+      border-right: 1px solid var(--line);
+    }
+
+    .group-row td {
+      background: #f2f3f1;
+      color: var(--ink);
+      font-weight: 720;
+      text-align: left;
+    }
+
+    .delta {
+      color: #228b22;
+      font-size: 7.2px;
+    }
+
+    .delta-strong {
+      font-weight: 720;
+    }
+
+    .minus {
+      color: #9a2f22;
+      font-size: 7.2px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 7px;
+      border: 1px solid var(--line-strong);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+
+    .budget-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .image-cell {
+      padding: 6px;
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+    }
+
+    .constrained {
+      width: min(100%, 720px);
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .efficiency-wrap table {
+      font-size: 13px;
+      min-width: 0;
+    }
+
+    .efficiency-wrap th,
+    .efficiency-wrap td {
+      padding: 10px 12px;
+    }
+
+    .split-band {
+      background: var(--soft);
+    }
+
+    .warm-band {
+      background: var(--soft-2);
+    }
+
+    pre {
+      overflow-x: auto;
+      margin: 0;
+      padding: 18px;
+      border: 1px solid var(--line-strong);
+      background: #111315;
+      color: #f4f1ea;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .footer {
+      padding: 28px 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .copy-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .copy-button {
+      min-height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--line-strong);
+      background: var(--paper);
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .copy-button:hover {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    @media (max-width: 900px) {
+      .hero {
+        padding-top: 46px;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .wrap {
+        width: 100%;
+        max-width: 390px;
+        margin-left: 0;
+        margin-right: auto;
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+
+      .section-pad {
+        padding: 38px 0;
+      }
+
+      .metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .budget-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .figure-frame,
+      .image-cell {
+        padding: 6px;
+      }
+
+      .result-table {
+        font-size: 5.4px;
+      }
+
+      .result-table th,
+      .result-table td {
+        padding: 3px 1.5px;
+      }
+
+      .delta,
+      .minus {
+        font-size: 5px;
+      }
+
+      h1 {
+        font-size: 30px;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+      }
+
+      .button,
+      .button-disabled {
+        justify-content: center;
+        width: 100%;
+        min-height: 41px;
+        padding: 0 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <div class="hero-grid">
+          <div>
+            <h1>AdaCodec: A Predictive Visual Code<br>for Video MLLMs</h1>
+            <div class="authors" aria-label="Authors and affiliations">
+              <div>
+                <a href="https://haowenhou.github.io/" rel="noopener"><strong>Haowen Hou<sup>1,2,3*</sup></strong></a> &nbsp;
+                <a href="https://huangzhen02.github.io/" rel="noopener"><strong>Zhen Huang<sup>2</sup></strong></a> &nbsp;
+                <strong>Zheming Liang<sup>2</sup></strong> &nbsp;
+                <a href="https://phoebussi.github.io/" rel="noopener"><strong>Qingyi Si<sup>3</sup></strong></a> &nbsp;
+                <strong>Chenglin Li<sup>2</sup></strong>
+              </div>
+              <div>
+                <strong>Shuai Dong<sup>2</sup></strong> &nbsp;
+                <a href="https://cokeshao.github.io/" rel="noopener"><strong>Kele Shao<sup>2</sup></strong></a> &nbsp;
+                <strong>Ruilin Li<sup>2</sup></strong> &nbsp;
+                <strong>Dianyi Wang<sup>2</sup></strong> &nbsp;
+                <a href="https://nanduan.github.io/" rel="noopener"><strong>Nan Duan<sup>3</sup></strong></a> &nbsp;
+                <a href="https://myownskyw7.github.io/" rel="noopener"><strong>Jiaqi Wang<sup>3,2&dagger;</sup></strong></a>
+              </div>
+              <div class="affiliations">
+                <sup>1</sup>Shanghai Jiao Tong University &nbsp;
+                <sup>2</sup>Shanghai Innovation Institute &nbsp;
+                <sup>3</sup>JD.com
+                <div class="correspondence"><sup>*</sup>Work done during an internship at JD.com &nbsp; <sup>&dagger;</sup>Corresponding author</div>
+              </div>
+            </div>
+            <div class="actions" aria-label="Project links">
+              <a class="button" href="assets/papers/adacodec.pdf" rel="noopener">Paper</a>
+              <a class="button" href="#citation" target="_self">Cite</a>
+              <a class="button" href="https://github.com/HaowenHou/AdaCodec" target="_blank" rel="noopener">Code: Coming soon</a>
+            </div>
+          </div>
+        </div>
+
+        <figure class="figure-frame">
+          <img src="assets/images/teaser.webp" width="2780" height="1105" alt="AdaCodec teaser comparing adaptive GOP coding, compact P-tokens, token reduction, latency, and benchmark accuracy.">
+          <figcaption class="caption">
+            AdaCodec forms adaptive GOPs, encodes I-frames with full visual tokens, and encodes intermediate frames with compact P-tokens derived from motion and residual signals.
+          </figcaption>
+        </figure>
+
+        <div class="abstract">
+          <p>
+            Video is temporally redundant: adjacent frames usually share most objects, background, and layout. Yet existing video multimodal large language models (video MLLMs) usually encode each sampled frame as an independent RGB image, causing visual tokens to repeat content already present in earlier frames. This suggests a more direct video interface: send a full reference frame only when the scene cannot be predicted well from prior context, and otherwise transmit a compact description of inter-frame changes. We call this interface a predictive visual code, and instantiate it for video MLLMs as AdaCodec. AdaCodec spends full visual tokens on a reference frame only when its conditional predictive cost is high; otherwise, it encodes inter-frame changes, including motion and prediction residuals, as compact P-tokens. Across all eleven benchmarks, AdaCodec improves over the Qwen3-VL-8B per-frame RGB baseline at a matched visual-token budget. Even at 1/7 the budget, AdaCodec with 32k tokens surpasses the 224k baseline on all long-video benchmarks; on five general-video benchmarks, it raises the average score while substantially cutting time-to-first-token from 9.26s to 1.62s.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-pad" id="overview">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Why Predictive Coding?</h2>
+          <p>
+            Adjacent video frames usually share objects, background, and layout. Per-frame RGB encoding repeats this evidence in the LLM context, causing token cost and latency to grow with sampling density.
+          </p>
+        </div>
+        <div class="metrics">
+          <div class="metric">
+            <strong>1/7</strong>
+            <span>visual-token budget still surpasses the 224k RGB baseline on all long-video benchmarks.</span>
+          </div>
+          <div class="metric">
+            <strong>84.7%</strong>
+            <span>average visual-token reduction over 11,347 evaluation videos.</span>
+          </div>
+          <div class="metric">
+            <strong>5.7x</strong>
+            <span>lower time-to-first-token before charging the 0.12s codec-build step.</span>
+          </div>
+          <div class="metric">
+            <strong>11</strong>
+            <span>benchmarks spanning long-video, temporal, and general video understanding.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-pad split-band" id="method">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Method</h2>
+          <p>
+            AdaCodec first redesigns predictive coding for MLLM tokenization, then uses predictive cost to place I-frames adaptively. The resulting visual code is inserted through a dual-branch tokenization architecture and aligned in two training stages.
+          </p>
+        </div>
+
+        <div class="two-col">
+          <div class="panel constrained">
+            <div class="steps">
+              <div class="step">
+                <div class="step-num">01</div>
+                <div>
+                  <h3>Redesign for MLLM Tokenization</h3>
+                  <p>AdaCodec changes playback-oriented predictive coding into a visual-token interface: ViT-aligned macroblocks, previous-frame motion reference, a larger search window for low-FPS sampling, and pcost reused for GOP scheduling.</p>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-num">02</div>
+                <div>
+                  <h3>Adaptive GOP Construction</h3>
+                  <p>Motion search produces a frame-level predictive cost, pcost. AdaCodec starts a new I-frame when pcost crosses a threshold and keeps predictable frames as compact P-frames.</p>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-num">03</div>
+                <div>
+                  <h3>Architecture and Training</h3>
+                  <p>I-frames use the native visual encoder, while P-frames use a P-tokenizer over residual and motion inputs. Stage 1 aligns P-tokens to frozen visual teacher features; Stage 2 aligns the full visual code with the language model.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <figure class="image-cell constrained method-figure">
+            <img src="assets/images/method_overview.webp" width="2573" height="844" alt="AdaCodec method overview showing motion and residual computation for P-frames and deployable I-frame and P-frame token pipelines.">
+            <figcaption class="caption">
+              I-frames use the native visual encoder; P-frames use a P-tokenizer matched to the MLLM visual interface.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-pad" id="results">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Main Results</h2>
+          <p>
+            At comparable token budget, AdaCodec improves over the Qwen3-VL-8B per-frame RGB baseline on every reported benchmark. At about one seventh of the token budget, it preserves accuracy across the benchmark groups.
+          </p>
+        </div>
+
+        <div class="table-wrap result-wrap">
+          <table class="result-table" aria-label="Main benchmark results across long-video, temporal, and general video-understanding tasks">
+            <colgroup>
+              <col style="width: 18%">
+              <col span="11" style="width: 7.45%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th rowspan="2">Method</th>
+                <th colspan="3">Long-video</th>
+                <th colspan="3">Temporal</th>
+                <th colspan="5">General</th>
+              </tr>
+              <tr>
+                <th>MLVU</th>
+                <th>LVB</th>
+                <th>LVBench</th>
+                <th>TempComp.</th>
+                <th>MotionB.</th>
+                <th>TOMATO</th>
+                <th>V-MME</th>
+                <th>MVBench</th>
+                <th>NExT-QA</th>
+                <th>PercTest</th>
+                <th>EgoSchema</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="group-row"><td colspan="12">Closed-source models</td></tr>
+              <tr>
+                <td>GPT-5</td><td>77.7</td><td>72.6</td><td>65.2</td><td>80.4</td><td>65.4</td><td>53.0</td><td>86.9</td><td>74.1</td><td>86.3</td><td>79.4</td><td>75.6</td>
+              </tr>
+              <tr>
+                <td>GPT-5 mini</td><td>69.1</td><td>69.7</td><td>54.7</td><td>74.9</td><td>59.9</td><td>44.1</td><td>82.3</td><td>66.5</td><td>83.2</td><td>72.0</td><td>70.9</td>
+              </tr>
+              <tr>
+                <td>Gemini 3 Pro</td><td>75.7</td><td>75.9</td><td>77.0</td><td>82.8</td><td>62.6</td><td>48.3</td><td>87.5</td><td>70.4</td><td>84.3</td><td>77.6</td><td>68.9</td>
+              </tr>
+              <tr>
+                <td>Gemini 2.5 Pro</td><td>81.5</td><td>76.8</td><td>75.7</td><td>81.9</td><td>62.0</td><td>48.6</td><td>87.8</td><td>70.6</td><td>85.3</td><td>78.4</td><td>72.2</td>
+              </tr>
+              <tr>
+                <td>Gemini 2.5 Flash</td><td>75.1</td><td>73.1</td><td>64.9</td><td>80.2</td><td>59.3</td><td>39.1</td><td>84.2</td><td>67.0</td><td>81.8</td><td>74.7</td><td>70.2</td>
+              </tr>
+              <tr>
+                <td>Claude Sonnet 4.5</td><td>64.0</td><td>65.1</td><td>50.5</td><td>72.8</td><td>58.5</td><td>39.6</td><td>80.5</td><td>62.1</td><td>79.2</td><td>64.3</td><td>73.1</td>
+              </tr>
+
+              <tr class="group-row"><td colspan="12">Open-source models</td></tr>
+              <tr>
+                <td>InternVL3.5-8B</td><td>53.2</td><td>62.1</td><td>43.4</td><td>70.3</td><td>56.6</td><td>24.6</td><td>68.6</td><td>72.1</td><td>81.7</td><td>72.7</td><td>58.6</td>
+              </tr>
+              <tr>
+                <td>Keye-VL-1.5-8B</td><td>53.8</td><td>66.0</td><td>42.8</td><td>75.5</td><td>55.1</td><td>33.0</td><td><strong>76.2</strong></td><td>56.9</td><td>75.8</td><td>64.2</td><td>56.3</td>
+              </tr>
+              <tr>
+                <td>GLM-4.1V-9B</td><td>56.6</td><td>65.7</td><td>44.0</td><td>72.3</td><td>59.0</td><td>30.0</td><td>75.6</td><td>68.4</td><td>81.3</td><td>74.2</td><td>62.6</td>
+              </tr>
+              <tr>
+                <td>MiniCPM-V-4.5-8B</td><td>60.6</td><td>63.9</td><td>50.4</td><td>72.7</td><td>59.7</td><td>29.8</td><td>73.5</td><td>60.5</td><td>78.8</td><td>70.9</td><td>49.6</td>
+              </tr>
+              <tr>
+                <td>Eagle2.5-8B</td><td>60.4</td><td>66.4</td><td>50.9</td><td>74.4</td><td>55.7</td><td>31.0</td><td>75.7</td><td>74.8</td><td>85.0</td><td>81.0</td><td><strong>72.2</strong></td>
+              </tr>
+              <tr>
+                <td>PLM-8B</td><td>52.6</td><td>56.9</td><td>44.5</td><td>72.7</td><td><u>61.4</u></td><td>33.2</td><td>65.4</td><td><strong>77.1</strong></td><td>84.1</td><td><strong>82.7</strong></td><td>68.8</td>
+              </tr>
+              <tr>
+                <td>LLaVA-Video-7B</td><td>52.8</td><td>58.2</td><td>44.2</td><td>66.6</td><td>54.2</td><td>24.9</td><td>69.7</td><td>58.6</td><td>83.2</td><td>68.8</td><td>57.3</td>
+              </tr>
+              <tr>
+                <td>VideoChat-Flash-7B</td><td>56.0</td><td>64.7</td><td>48.2</td><td>69.4</td><td>60.6</td><td>32.5</td><td>69.7</td><td>74.0</td><td><u>85.5</u></td><td>76.5</td><td>51.3</td>
+              </tr>
+              <tr>
+                <td>Molmo2-8B</td><td>60.2</td><td><u>67.5</u></td><td>52.8</td><td>73.4</td><td><strong>62.2</strong></td><td>39.6</td><td><u>75.8</u></td><td>75.9</td><td><strong>86.2</strong></td><td><u>82.1</u></td><td>62.0</td>
+              </tr>
+              <tr>
+                <td>Molmo2-O-7B</td><td>55.2</td><td>63.7</td><td>49.6</td><td>73.0</td><td>60.6</td><td>36.2</td><td>69.2</td><td>74.8</td><td>84.3</td><td>79.6</td><td>56.8</td>
+              </tr>
+
+              <tr class="group-row"><td colspan="12">Codec-aware video MLLMs</td></tr>
+              <tr>
+                <td>CoPE-VideoLM-7B</td><td>-</td><td>56.9</td><td>46.4</td><td>68.9</td><td>-</td><td>28.3</td><td>69.4</td><td>61.9</td><td>82.1</td><td>70.3</td><td>-</td>
+              </tr>
+              <tr>
+                <td>ReMoRa-7B</td><td>-</td><td>60.8</td><td>-</td><td>-</td><td>-</td><td>-</td><td>64.4</td><td>-</td><td>84.2</td><td>67.7</td><td>-</td>
+              </tr>
+
+              <tr class="group-row"><td colspan="12">Ours: AdaCodec on Qwen3-VL-8B</td></tr>
+              <tr>
+                <td>Qwen3-VL-8B</td><td>62.2</td><td>62.4</td><td>58.0</td><td>74.3</td><td>56.9</td><td>35.7</td><td>75.2</td><td>68.7</td><td>83.4</td><td>72.7</td><td>69.8</td>
+              </tr>
+              <tr>
+                <td>AdaCodec (1/7 token budget)</td>
+                <td><u>62.7</u> <span class="delta">+0.5</span></td>
+                <td>63.2 <span class="delta">+0.8</span></td>
+                <td><u>58.2</u> <span class="delta">+0.2</span></td>
+                <td><u>75.8</u> <span class="delta delta-strong">+1.5</span></td>
+                <td>58.8 <span class="delta delta-strong">+1.9</span></td>
+                <td><u>39.8</u> <span class="delta delta-strong">+4.1</span></td>
+                <td>75.0 <span class="minus">-0.2</span></td>
+                <td>75.3 <span class="delta delta-strong">+6.6</span></td>
+                <td>83.1 <span class="minus">-0.3</span></td>
+                <td>75.1 <span class="delta delta-strong">+2.4</span></td>
+                <td>70.2 <span class="delta">+0.4</span></td>
+              </tr>
+              <tr>
+                <td><strong>AdaCodec (comparable token budget)</strong></td>
+                <td><strong>65.3</strong> <span class="delta delta-strong">+3.1</span></td>
+                <td><strong>67.8</strong> <span class="delta delta-strong">+5.4</span></td>
+                <td><strong>58.4</strong> <span class="delta">+0.4</span></td>
+                <td><strong>75.9</strong> <span class="delta delta-strong">+1.6</span></td>
+                <td>59.9 <span class="delta delta-strong">+3.0</span></td>
+                <td><strong>40.0</strong> <span class="delta delta-strong">+4.3</span></td>
+                <td>75.5 <span class="delta">+0.3</span></td>
+                <td><u>76.6</u> <span class="delta delta-strong">+7.9</span></td>
+                <td>84.2 <span class="delta">+0.8</span></td>
+                <td>80.5 <span class="delta delta-strong">+7.8</span></td>
+                <td><u>70.4</u> <span class="delta">+0.6</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="caption">
+          Higher is better. Bold and underlined values mark the best and second-best results among open-source models. LVB denotes LongVideoBench, and V-MME denotes Video-MME. Deltas compare AdaCodec against the Qwen3-VL-8B per-frame RGB baseline.
+        </p>
+      </div>
+    </section>
+
+    <section class="section section-pad warm-band" id="efficiency">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Efficiency</h2>
+          <p>
+            The latency evaluation uses matched hardware, batch size 1, the same prompt template, identical decoding settings, 64 generated tokens, and the same input resolution.
+          </p>
+        </div>
+
+        <div class="table-wrap constrained efficiency-wrap">
+          <table aria-label="Latency and token efficiency comparison">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Visual Tokens</th>
+                <th>Codec Build</th>
+                <th>TTFT</th>
+                <th>E2EL</th>
+                <th>Peak Memory</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Per-frame RGB baseline</td>
+                <td>55,893.2</td>
+                <td>--</td>
+                <td>9.26s</td>
+                <td>11.18s</td>
+                <td>34.6 GB</td>
+                <td>74.0</td>
+              </tr>
+              <tr>
+                <td><strong>AdaCodec</strong></td>
+                <td><strong>8,550.4</strong></td>
+                <td>0.12s</td>
+                <td><strong>1.62s</strong></td>
+                <td><strong>3.20s</strong></td>
+                <td>36.5 GB</td>
+                <td><strong>75.7</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-pad" id="token-budget">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Token Budget Scaling</h2>
+          <p>
+            On long-video benchmarks, AdaCodec dominates the per-frame RGB baseline from 32k to 224k visual tokens. The low-budget setting already exceeds the high-budget RGB baseline.
+          </p>
+        </div>
+
+        <div class="image-grid budget-grid constrained budget-block">
+          <figure class="image-cell">
+            <img src="assets/images/budget_mlvu.webp" width="1205" height="855" alt="MLVU accuracy under visual-token budget sweeps.">
+          </figure>
+          <figure class="image-cell">
+            <img src="assets/images/budget_lvb.webp" width="1205" height="849" alt="LongVideoBench accuracy under visual-token budget sweeps.">
+          </figure>
+          <figure class="image-cell">
+            <img src="assets/images/budget_lvbench.webp" width="1205" height="855" alt="LVBench accuracy under visual-token budget sweeps.">
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-pad split-band" id="adaptive">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Adaptive Behavior</h2>
+          <p>
+            AdaCodec does not apply a fixed compression schedule. It allocates longer GOPs to stable videos and refreshes I-frames more often when camera motion, scene changes, or residuals increase.
+          </p>
+        </div>
+
+        <div class="image-grid constrained adaptive-block">
+          <figure class="image-cell">
+            <img src="assets/images/adaptive_composite.webp" width="2426" height="858" alt="Adaptive GOP analysis across MLVU categories and case studies.">
+            <figcaption class="caption">
+              Stable MLVU anomaly videos sustain longer GOPs, helping AdaCodec preserve more of the original timeline under the same context budget.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-pad" id="citation">
+      <div class="wrap">
+        <div class="copy-row">
+          <h2>Cite</h2>
+          <button class="copy-button" type="button" data-copy="#bibtex">Copy Cite</button>
+        </div>
+        <pre id="bibtex">@misc{adacodec2026,
+  title        = {AdaCodec: A Predictive Visual Code for Video MLLMs},
+  author       = {Hou, Haowen and Huang, Zhen and Liang, Zheming and Si, Qingyi and Li, Chenglin and Dong, Shuai and Shao, Kele and Li, Ruilin and Wang, Dianyi and Duan, Nan and Wang, Jiaqi},
+  year         = {2026},
+  note         = {Preprint}
+}</pre>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      AdaCodec project page.
+    </div>
+  </footer>
+
+  <script>
+    document.querySelectorAll("[data-copy]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const target = document.querySelector(button.getAttribute("data-copy"));
+        if (!target) return;
+        const original = button.textContent;
+        try {
+          await navigator.clipboard.writeText(target.textContent.trim());
+          button.textContent = "Copied";
+        } catch {
+          button.textContent = "Select Cite";
+        }
+        window.setTimeout(() => {
+          button.textContent = original;
+        }, 1600);
+      });
+    });
+  </script>
+</body>
+</html>
